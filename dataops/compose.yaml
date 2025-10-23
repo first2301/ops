@@ -1,0 +1,6 @@
+name: dataops
+networks:
+  dataops-net:
+    external: $(SHARED_NET:-dataops-net)
+volumes:
+  postgres-db-volume:
