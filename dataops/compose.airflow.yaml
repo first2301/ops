@@ -68,8 +68,6 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__DEFAULT_TIMEZONE: 'Asia/Seoul'
-    HADOOP_CONF_DIR: '/opt/hadoop/etc/hadoop'
-    HADOOP_HOME: '/opt/hadoop'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     # yamllint disable rule:line-length
     # Use simple http server on scheduler for health checks
@@ -87,7 +85,6 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/airflow/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/staging:/opt/airflow/data
-    - ${AIRFLOW_PROJ_DIR:-.}/hadoop/config:/opt/hadoop/etc/hadoop
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on

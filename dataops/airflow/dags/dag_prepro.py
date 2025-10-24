@@ -5,8 +5,14 @@ import pandas as pd
 import random
 import os
 from typing import Dict
-import subprocess
+import requests
+from io import StringIO
+import logging
 import tempfile
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # DAG 기본 설정
 default_args = {
@@ -19,16 +25,24 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
+# WebHDFS 설정
+HDFS_CONFIG = {
+    'namenode_host': 'namenode',
+    'namenode_port': 9870,
+    'timeout': 60,
+    'max_retries': 3
+}
+
 @dag(
-    dag_id='restaurant_data_preprocessing_v2',
+    dag_id='restaurant_data_preprocessing_v3',
     default_args=default_args,
-    description='음식점 데이터 전처리 및 PostgreSQL 저장 (TaskFlow API)',
+    description='음식점 데이터 전처리 및 PostgreSQL 저장 (WebHDFS 최적화)',
     schedule_interval='@daily',
     catchup=False,
-    tags=['dataops', 'preprocessing', 'restaurant', 'taskflow'],
+    tags=['dataops', 'preprocessing', 'restaurant', 'webhdfs'],
 )
 def restaurant_data_preprocessing():
-    """음식점 데이터 전처리 DAG"""
+    """최적화된 음식점 데이터 전처리 DAG"""
     
     def split_address(address):
         """주소를 분리하는 함수"""
@@ -45,56 +59,77 @@ def restaurant_data_preprocessing():
         else:
             return None, None, None, None, None
 
-    def read_csv_from_hdfs(hdfs_path: str) -> pd.DataFrame:
-        """HDFS에서 CSV 파일을 읽어서 DataFrame으로 반환"""
+    def read_csv_from_hdfs_webhdfs(hdfs_path: str) -> pd.DataFrame:
+        """WebHDFS API를 사용하여 HDFS에서 CSV 파일 읽기"""
+        start_time = datetime.now()
+        logger.info(f"WebHDFS 파일 읽기 시작: {hdfs_path}")
+        
         try:
-            # 환경 변수 설정 (Hadoop 클라이언트가 필요)
-            env = os.environ.copy()
-            env['HADOOP_CONF_DIR'] = '/opt/hadoop/etc/hadoop'
-            env['HADOOP_HOME'] = '/opt/hadoop'
+            # 파일 상태 확인
+            status_url = f"http://{HDFS_CONFIG['namenode_host']}:{HDFS_CONFIG['namenode_port']}/webhdfs/v1{hdfs_path}?op=GETFILESTATUS"
+            status_response = requests.get(status_url, timeout=HDFS_CONFIG['timeout'])
             
-            # 임시 파일 생성
-            with tempfile.NamedTemporaryFile(mode='w+', suffix='.csv', delete=False) as temp_file:
-                temp_path = temp_file.name
+            if status_response.status_code == 404:
+                raise FileNotFoundError(f"HDFS 파일을 찾을 수 없습니다: {hdfs_path}")
             
-            # HDFS에서 파일 다운로드
-            hdfs_command = [
-                'hdfs', 'dfs', '-get', 
-                hdfs_path, 
-                temp_path
-            ]
+            # 파일 읽기
+            url = f"http://{HDFS_CONFIG['namenode_host']}:{HDFS_CONFIG['namenode_port']}/webhdfs/v1{hdfs_path}?op=OPEN"
+            response = requests.get(url, timeout=HDFS_CONFIG['timeout'])
+            response.raise_for_status()
             
-            print(f"HDFS에서 파일 다운로드: {hdfs_path}")
-            result = subprocess.run(hdfs_command, capture_output=True, text=True, check=True, env=env)
+            # 인코딩 처리
+            try:
+                df = pd.read_csv(StringIO(response.text), encoding='cp949')
+            except UnicodeDecodeError:
+                df = pd.read_csv(StringIO(response.text), encoding='utf-8')
             
-            # CSV 파일 읽기
-            df = pd.read_csv(temp_path, encoding='cp949')
+            # 성능 로깅
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logger.info(f"WebHDFS 파일 읽기 완료: {len(df)}건, 소요시간: {duration:.2f}초")
             
-            # 임시 파일 삭제
-            os.unlink(temp_path)
-            
-            print(f"HDFS 파일 읽기 완료: {len(df)}건")
             return df
             
-        except subprocess.CalledProcessError as e:
-            print(f"HDFS 명령 실행 오류: {e}")
-            print(f"stderr: {e.stderr}")
-            print(f"stdout: {e.stdout}")
-            raise
+        except requests.exceptions.Timeout:
+            raise Exception(f"HDFS 연결 시간 초과: {hdfs_path}")
+        except requests.exceptions.ConnectionError:
+            raise Exception(f"HDFS 연결 실패: {hdfs_path}")
         except Exception as e:
-            print(f"파일 읽기 오류: {e}")
+            logger.error(f"WebHDFS 파일 읽기 오류: {e}")
+            raise
+
+    def upload_csv_to_hdfs_webhdfs(local_file_path: str, hdfs_path: str):
+        """WebHDFS API를 사용하여 HDFS에 파일 업로드"""
+        try:
+            # 파일 읽기
+            with open(local_file_path, 'r', encoding='utf-8') as f:
+                data = f.read()
+            
+            # 1단계: 업로드 위치 요청
+            url = f"http://{HDFS_CONFIG['namenode_host']}:{HDFS_CONFIG['namenode_port']}/webhdfs/v1{hdfs_path}?op=CREATE&overwrite=true"
+            response = requests.put(url, timeout=HDFS_CONFIG['timeout'])
+            response.raise_for_status()
+            
+            # 2단계: 실제 데이터 업로드
+            upload_response = requests.put(response.url, data=data, timeout=HDFS_CONFIG['timeout'])
+            upload_response.raise_for_status()
+            
+            logger.info(f"WebHDFS 업로드 완료: {hdfs_path}")
+            
+        except Exception as e:
+            logger.error(f"WebHDFS 업로드 오류: {e}")
             raise
 
     @task
     def load_and_preprocess_data() -> Dict[int, pd.DataFrame]:
-        """HDFS에서 데이터 로딩 및 전처리 Task"""
+        """WebHDFS에서 데이터 로딩 및 전처리 Task"""
         # HDFS 경로 설정
-        HDFS_BASE_PATH = "hdfs://namenode:8020/data/restaurant"
+        HDFS_BASE_PATH = "/data/restaurant"
         
         try:
-            # HDFS에서 원본 데이터 파일 읽기
+            # WebHDFS에서 원본 데이터 파일 읽기
             original_file_path = f"{HDFS_BASE_PATH}/fulldata_07_24_04_P_일반음식점.csv"
-            df = read_csv_from_hdfs(original_file_path)
+            df = read_csv_from_hdfs_webhdfs(original_file_path)
             df = df.copy()
             
             # 날짜별 정렬 및 전처리
@@ -109,35 +144,11 @@ def restaurant_data_preprocessing():
                 if not year_df.empty:
                     years_data[year] = year_df.reset_index().drop('index', axis=1)
             
-            print(f"HDFS 데이터 로딩 완료: {len(df)}건")
+            logger.info(f"WebHDFS 데이터 로딩 완료: {len(df)}건")
             return years_data
             
         except Exception as e:
-            print(f"HDFS 데이터 로딩 오류: {e}")
-            raise
-
-    def upload_csv_to_hdfs(local_file_path: str, hdfs_path: str):
-        """로컬 CSV 파일을 HDFS에 업로드"""
-        try:
-            # 환경 변수 설정
-            env = os.environ.copy()
-            env['HADOOP_CONF_DIR'] = '/opt/hadoop/etc/hadoop'
-            env['HADOOP_HOME'] = '/opt/hadoop'
-            
-            hdfs_command = [
-                'hdfs', 'dfs', '-put', 
-                local_file_path, 
-                hdfs_path
-            ]
-            
-            print(f"HDFS에 파일 업로드: {hdfs_path}")
-            result = subprocess.run(hdfs_command, capture_output=True, text=True, check=True, env=env)
-            print(f"HDFS 업로드 완료: {hdfs_path}")
-            
-        except subprocess.CalledProcessError as e:
-            print(f"HDFS 업로드 오류: {e}")
-            print(f"stderr: {e.stderr}")
-            print(f"stdout: {e.stdout}")
+            logger.error(f"WebHDFS 데이터 로딩 오류: {e}")
             raise
 
     def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -157,7 +168,7 @@ def restaurant_data_preprocessing():
     @task
     def preprocess_yearly_data(years_data: Dict[int, pd.DataFrame]) -> Dict[int, pd.DataFrame]:
         """연도별 데이터 전처리 Task"""
-        HDFS_BASE_PATH = "hdfs://namenode:8020/data/restaurant"
+        HDFS_BASE_PATH = "/data/restaurant"
         
         try:
             processed_data = {}
@@ -173,19 +184,19 @@ def restaurant_data_preprocessing():
                 # CSV 파일 저장
                 processed_df.to_csv(temp_path, index=False, encoding='utf-8')
                 
-                # HDFS에 업로드
+                # WebHDFS에 업로드
                 hdfs_path = f"{HDFS_BASE_PATH}/restaurant_{year}.csv"
-                upload_csv_to_hdfs(temp_path, hdfs_path)
+                upload_csv_to_hdfs_webhdfs(temp_path, hdfs_path)
                 
                 # 임시 파일 삭제
                 os.unlink(temp_path)
                 
-                print(f"{year}년 데이터 전처리 완료: {len(processed_df)}건")
+                logger.info(f"{year}년 데이터 전처리 완료: {len(processed_df)}건")
             
             return processed_data
             
         except Exception as e:
-            print(f"데이터 전처리 오류: {e}")
+            logger.error(f"데이터 전처리 오류: {e}")
             raise
 
     @task
