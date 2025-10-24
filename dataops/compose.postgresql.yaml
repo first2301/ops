@@ -4,7 +4,7 @@ networks:
 services:
   postgresql:
     image: postgres:18 # 사용할 PostgreSQL 버전
-    container_name: postgresql
+    container_name: data-warehouse-postgresql
     environment:
       POSTGRES_DB: dataops
       POSTGRES_USER: dataops
