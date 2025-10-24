@@ -16,6 +16,8 @@ services:
           ENSURE_NAMENODE_DIR: "/tmp/hadoop-root/dfs/name"
       networks:
         - dataops-net
+      volumes:
+        - ./staging:/staging
    datanode:
       image: apache/hadoop:3
       command: ["hdfs", "datanode"]
