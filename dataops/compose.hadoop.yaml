@@ -17,6 +17,7 @@ services:
       ENSURE_NAMENODE_DIR: "/var/lib/hadoop-hdfs/name"
       HADOOP_LOG_DIR: "/var/log/hadoop"
     volumes:
+      - ./hadoop/config:/opt/hadoop/etc/hadoop:ro
       - namenode-data:/var/lib/hadoop-hdfs/name
       - namenode-logs:/var/log/hadoop
       # - ./hadoop/conf:/etc/hadoop:ro   # (선택) XML 설정을 코드로 관리할 때
@@ -31,6 +32,7 @@ services:
     environment:
       HADOOP_LOG_DIR: "/var/log/hadoop"
     volumes:
+      - ./hadoop/config:/opt/hadoop/etc/hadoop:ro
       - datanode-data:/var/lib/hadoop-hdfs/data
       - datanode-logs:/var/log/hadoop
       # - ./hadoop/conf:/etc/hadoop:ro   # (선택)
@@ -48,6 +50,7 @@ services:
     environment:
       HADOOP_LOG_DIR: "/var/log/hadoop"
     volumes:
+      - ./hadoop/config:/opt/hadoop/etc/hadoop:ro
       - ./hadoop/test.sh:/opt/test.sh
       - resourcemanager-logs:/var/log/hadoop
       # - ./hadoop/conf:/etc/hadoop:ro   # (선택)
@@ -62,6 +65,7 @@ services:
     environment:
       HADOOP_LOG_DIR: "/var/log/hadoop"
     volumes:
+      - ./hadoop/config:/opt/hadoop/etc/hadoop:ro
       - nodemanager-logs:/var/log/hadoop
       # - ./hadoop/conf:/etc/hadoop:ro   # (선택)
     networks: [dataops-net]
