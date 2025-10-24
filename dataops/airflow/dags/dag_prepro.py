@@ -37,27 +37,27 @@ HDFS_CONFIG = {
     dag_id='restaurant_data_preprocessing_v3',
     default_args=default_args,
     description='음식점 데이터 전처리 및 PostgreSQL 저장 (WebHDFS 최적화)',
-    schedule_interval='@daily',
+    schedule='@daily',
     catchup=False,
     tags=['dataops', 'preprocessing', 'restaurant', 'webhdfs'],
 )
 def restaurant_data_preprocessing():
     """최적화된 음식점 데이터 전처리 DAG"""
-    
-    def split_address(address):
+
+def split_address(address):
         """주소를 분리하는 함수"""
-        parts = address.split()
-        
-        if len(parts) >= 4:
-            city_name = parts[0]  # 예: 전라북도
-            district = parts[1]  # 예: 남원시
-            town = parts[2]  # 예: 대강면
+    parts = address.split()
+    
+    if len(parts) >= 4:
+        city_name = parts[0]  # 예: 전라북도
+        district = parts[1]  # 예: 남원시
+        town = parts[2]  # 예: 대강면
             road_name = ' '.join(parts[3:-1])  # 예: 대강월산길
             bungee = parts[-1]  # 예: 37-16
-            
-            return city_name, district, town, road_name, bungee
-        else:
-            return None, None, None, None, None
+        
+        return city_name, district, town, road_name, bungee
+    else:
+        return None, None, None, None, None
 
     def read_csv_from_hdfs_webhdfs(hdfs_path: str) -> pd.DataFrame:
         """WebHDFS API를 사용하여 HDFS에서 CSV 파일 읽기"""
@@ -153,17 +153,17 @@ def restaurant_data_preprocessing():
 
     def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         """개별 데이터프레임 전처리"""
-        random_value = random.randint(10120, 10200)
-        df = df[:random_value].loc[:, ['개방서비스명', '인허가일자', '폐업일자','영업상태명', '도로명전체주소', '사업장명', '업태구분명', '남성종사자수', '여성종사자수']]
-        df['도로명전체주소'] = df['도로명전체주소'].fillna('')
-        df['폐업일자'] = df['폐업일자'].fillna('운영중')
-        df.loc[:, '도로명전체주소'] = [address.split(',')[0] for address in df['도로명전체주소']]
+    random_value = random.randint(10120, 10200)
+    df = df[:random_value].loc[:, ['개방서비스명', '인허가일자', '폐업일자','영업상태명', '도로명전체주소', '사업장명', '업태구분명', '남성종사자수', '여성종사자수']]
+    df['도로명전체주소'] = df['도로명전체주소'].fillna('')
+    df['폐업일자'] = df['폐업일자'].fillna('운영중')
+    df.loc[:, '도로명전체주소'] = [address.split(',')[0] for address in df['도로명전체주소']]
 
-        df[['시도', '시군구', '읍면동', '도로명', '번지']] = df['도로명전체주소'].apply(lambda x: pd.Series(split_address(x)))
-        df.loc[:, 'num'] = 1
-        df = df.rename(columns={'도로명전체주소': '소재지', '사업장명': '시설명', '업태구분명': '구분'})
-        df = df.reset_index().drop(columns='index')
-        return df
+    df[['시도', '시군구', '읍면동', '도로명', '번지']] = df['도로명전체주소'].apply(lambda x: pd.Series(split_address(x)))
+    df.loc[:, 'num'] = 1
+    df = df.rename(columns={'도로명전체주소': '소재지', '사업장명': '시설명', '업태구분명': '구분'})
+    df = df.reset_index().drop(columns='index')
+    return df
 
     @task
     def preprocess_yearly_data(years_data: Dict[int, pd.DataFrame]) -> Dict[int, pd.DataFrame]:
