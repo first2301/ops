@@ -44,6 +44,7 @@
 #
 # Feel free to modify this file to suit your needs.
 ---
+name: dataops-airflow
 networks:
   dataops-net:
     external: true

@@ -1,3 +1,4 @@
+name: dataops-hadoop
 networks:
   dataops-net:
     external: true
@@ -12,10 +13,10 @@ services:
       env_file:
         - ./hadoop/config
       environment:
-          ENSURE_NAMENODE_DIR: "/tmp/hadoop-root/dfs/name"
+          ENSURE_NAMENODE_DIR: "/tmp/hadoop-hadoop/dfs/name"
       volumes:
-        - namenode-data:/tmp/hadoop-root/dfs/name
-        - namenode-logs:/tmp/hadoop-root/logs
+        - namenode-data:/tmp/hadoop-hadoop/dfs/name
+        - namenode-logs:/tmp/hadoop-hadoop/logs
       networks:
         - dataops-net
    datanode:
@@ -26,8 +27,8 @@ services:
       networks:
         - dataops-net
       volumes:
-        - datanode-data:/tmp/hadoop-root/dfs/data
-        - datanode-logs:/tmp/hadoop-root/logs
+        - datanode-data:/tmp/hadoop-hadoop/dfs/data
+        - datanode-logs:/tmp/hadoop-hadoop/logs
    resourcemanager:
       image: apache/hadoop:3
       hostname: resourcemanager
@@ -38,7 +39,7 @@ services:
         - ./hadoop/config
       volumes:
         - ./hadoop/test.sh:/opt/test.sh
-        - resourcemanager-logs:/tmp/hadoop-root/logs
+        - resourcemanager-logs:/tmp/hadoop-hadoop/logs
       networks:
         - dataops-net
    nodemanager:
@@ -47,7 +48,7 @@ services:
       env_file:
         - ./hadoop/config
       volumes:
-        - nodemanager-logs:/tmp/hadoop-root/logs
+        - nodemanager-logs:/tmp/hadoop-hadoop/logs
       networks:
         - dataops-net
 
