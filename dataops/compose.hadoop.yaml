@@ -2,60 +2,74 @@ name: dataops-hadoop
 networks:
   dataops-net:
     external: true
-    
-services:
-   namenode:
-      image: apache/hadoop:3
-      hostname: namenode
-      command: ["hdfs", "namenode"]
-      ports:
-        - 9870:9870
-      env_file:
-        - ./hadoop/config
-      environment:
-          ENSURE_NAMENODE_DIR: "/tmp/hadoop-hadoop/dfs/name"
-      volumes:
-        - namenode-data:/tmp/hadoop-hadoop/dfs/name
-        - namenode-logs:/tmp/hadoop-hadoop/logs
-      networks:
-        - dataops-net
-   datanode:
-      image: apache/hadoop:3
-      command: ["hdfs", "datanode"]
-      env_file:
-        - ./hadoop/config      
-      networks:
-        - dataops-net
-      volumes:
-        - datanode-data:/tmp/hadoop-hadoop/dfs/data
-        - datanode-logs:/tmp/hadoop-hadoop/logs
-   resourcemanager:
-      image: apache/hadoop:3
-      hostname: resourcemanager
-      command: ["yarn", "resourcemanager"]
-      ports:
-         - 8088:8088
-      env_file:
-        - ./hadoop/config
-      volumes:
-        - ./hadoop/test.sh:/opt/test.sh
-        - resourcemanager-logs:/tmp/hadoop-hadoop/logs
-      networks:
-        - dataops-net
-   nodemanager:
-      image: apache/hadoop:3
-      command: ["yarn", "nodemanager"]
-      env_file:
-        - ./hadoop/config
-      volumes:
-        - nodemanager-logs:/tmp/hadoop-hadoop/logs
-      networks:
-        - dataops-net
 
-volumes:  
-  namenode-data:
-  namenode-logs:
-  datanode-data:
-  datanode-logs:
-  resourcemanager-logs:
-  nodemanager-logs:
+services:
+  namenode:
+    image: apache/hadoop:3
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    user: "1000:1000"
+    ports:
+      - 9870:9870
+    env_file:
+      - ./hadoop/config
+    environment:
+      ENSURE_NAMENODE_DIR: "/var/lib/hadoop-hdfs/name"
+      HADOOP_LOG_DIR: "/var/log/hadoop"
+    volumes:
+      - namenode-data:/var/lib/hadoop-hdfs/name
+      - namenode-logs:/var/log/hadoop
+      # - ./hadoop/conf:/etc/hadoop:ro   # (선택) XML 설정을 코드로 관리할 때
+    networks: [dataops-net]
+
+  datanode:
+    image: apache/hadoop:3
+    command: ["hdfs", "datanode"]
+    user: "1000:1000"
+    env_file:
+      - ./hadoop/config
+    environment:
+      HADOOP_LOG_DIR: "/var/log/hadoop"
+    volumes:
+      - datanode-data:/var/lib/hadoop-hdfs/data
+      - datanode-logs:/var/log/hadoop
+      # - ./hadoop/conf:/etc/hadoop:ro   # (선택)
+    networks: [dataops-net]
+
+  resourcemanager:
+    image: apache/hadoop:3
+    hostname: resourcemanager
+    command: ["yarn", "resourcemanager"]
+    user: "1000:1000"
+    ports:
+      - 8088:8088
+    env_file:
+      - ./hadoop/config
+    environment:
+      HADOOP_LOG_DIR: "/var/log/hadoop"
+    volumes:
+      - ./hadoop/test.sh:/opt/test.sh
+      - resourcemanager-logs:/var/log/hadoop
+      # - ./hadoop/conf:/etc/hadoop:ro   # (선택)
+    networks: [dataops-net]
+
+  nodemanager:
+    image: apache/hadoop:3
+    command: ["yarn", "nodemanager"]
+    user: "1000:1000"
+    env_file:
+      - ./hadoop/config
+    environment:
+      HADOOP_LOG_DIR: "/var/log/hadoop"
+    volumes:
+      - nodemanager-logs:/var/log/hadoop
+      # - ./hadoop/conf:/etc/hadoop:ro   # (선택)
+    networks: [dataops-net]
+
+volumes:
+  namenode-data: {}
+  namenode-logs: {}
+  datanode-data: {}
+  datanode-logs: {}
+  resourcemanager-logs: {}
+  nodemanager-logs: {}
