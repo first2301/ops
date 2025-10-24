@@ -1,4 +1,3 @@
-name: dataops-postgresql
 networks:
   dataops-net:
     external: true
