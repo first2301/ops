@@ -6,3 +6,4 @@ logs
 staging
 input
 __pycache__
+.env
