@@ -1,7 +1,6 @@
 .venv
 data
 manifests
-mlflow
 logs
 staging
 input
