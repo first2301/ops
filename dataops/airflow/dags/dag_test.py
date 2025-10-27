@@ -12,7 +12,6 @@ with DAG(
     dag_id='simple_data_pipeline',
     default_args=default_args,
     description='A simple data collection and preprocessing pipeline',
-    schedule_interval=None,
     start_date=datetime(2024, 1, 1),
     catchup=False,
 ) as dag:
