@@ -7,3 +7,4 @@ input
 __pycache__
 .env
 artifacts
+raw
