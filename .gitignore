@@ -6,3 +6,4 @@ staging
 input
 __pycache__
 .env
+artifacts
